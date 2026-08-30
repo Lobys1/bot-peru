@@ -76,5 +76,6 @@ def procesar_senal_arbitraje(message):
     )
     bot.reply_to(message, respuesta, reply_markup=markup, parse_mode="Markdown")
 
+
 if __name__ == "__main__":
     bot.infinity_polling()
