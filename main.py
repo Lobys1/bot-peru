@@ -1,91 +1,76 @@
 import os
-import logging
-import re
+import telebot
 import urllib.parse
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# Carga tu token de las variables de Render
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+# Si el código anterior fallaba, puedes poner tu token directamente entre las comillas abajo:
+if not TELEGRAM_TOKEN:
+    TELEGRAM_TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
 
-# 🔑 BORRA LO QUE ESTÁ EN MEDIO DE LAS COMILLAS Y PEGA TU TOKEN COMPLETO AQUÍ:
-TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-DICCIONARIO_CASAS = {
-    r"Betsson\(BR\)": "Betsson Perú 🇵🇪",
-    r"Betano": "Betano Perú 🇵🇪",
-    r"EstrelaBet\(BR\)": "Betano / Doradobet (Mismo Proveedor) 🇵🇪",
-    r"1xBet": "1xBet Perú 🇵🇪",
-    r"Coolbet": "Coolbet Perú 🇵🇪",
-    r"Novibet": "Novibet Perú 🇵🇪",
-    r"Doradobet": "Doradobet 🇵🇪",
-    r"Inkabet": "Inkabet 🇵🇪"
-}
+# Respuestas automáticas para comandos básicos
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    bot.reply_to(message, "¡Bot Perú Activo! Envíame tu señal de apuestas y te daré la traducción con los accesos directos de inmediato.")
 
-DICCIONARIO_MERCADOS = {
-    "Total de visitas": "Total de Carreras - VISITANTE (Pestaña: Especiales por Equipo / Carreras)",
-    "Pontos totais": "Total de Puntos (Pestaña: Más/Menos o Totales)",
-    "Patadas totales": "Remates Totales (Busca 'Total de tiros')",
-    "Tiros a puerta": "Tiros al arco / Remates a portería",
-    "Escanteios Totales": "Córners / Tiros de Esquina Totales",
-    "Escanteios": "Córners / Tiros de Esquina",
-    "Cantos": "Córners / Tiros de Esquina",
-    "Cartões": "Tarjetas Totales",
-    "Ambos Marcam": "Ambos Anotan (Sí/No)",
-    "Por encima de": "Más de (+)",
-    "Por debajo de": "Menos de (-)",
-    "Por debaixo de": "Menos de (-)",
-    "Aposta:": "Apuesta:",
-    "Jogo:": "Partido:"
-}
+@bot.message_handler(func=lambda message: message.text.lower() in ['hola', 'buenas'])
+def send_hola(message):
+    bot.reply_to(message, "¡Hola! Estoy listo. Envíame la señal completa para procesarla en un segundo.")
 
-def traducir_texto(texto):
-    for br, pe in DICCIONARIO_CASAS.items():
-        texto = re.sub(br, pe, texto, flags=re.IGNORECASE)
-    for br, pe in DICCIONARIO_MERCADOS.items():
-        texto = texto.replace(br, pe)
-    return texto
-
-def extraer_partido(texto):
-    for linea in texto.split('\n'):
-        if "Jogo:" in linea:
-            return linea.replace("Jogo:", "").strip()
-        if "Partido:" in linea:
-            return linea.replace("Partido:", "").strip()
-        if ("–" in linea or "-" in linea) and not any(k in linea for k in ["Fecha", "Casas", "Apuesta", "Aposta", "GANANCIA", "Mercado"]):
-            return linea.replace("➡ ", "").strip()
-    return "Alianza Lima Universitario"
-
-async def manejar_senal(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    texto = update.message.text
-    if not texto: return
+# PROCESADOR DE SEÑALES AUTOMÁTICO
+@bot.message_handler(func=lambda message: True)
+def procesar_senal_arbitraje(message):
+    texto = message.text
+    lineas = texto.split('\n')
     
-    texto_peru = traducir_texto(texto)
-    partido = extraer_partido(texto)
+    partido = "Partido"
+    mercado_detectado = "Buscar mercado"
     
-    query = urllib.parse.quote_plus(partido)
-    botones = [
-        [InlineKeyboardButton("🔍 Buscar Partido en Betano", url=f"https://betano.pe{query}")],
-        [InlineKeyboardButton("🔍 Buscar Partido en Betsson", url=f"https://betsson.pe{query}")]
-    ]
-    
-    # Asegurar el cambio visual de Aposta a Apuesta
-    texto_peru = texto_peru.replace("Aposta:", "Apuesta:")
-    
-    await update.message.reply_text(
-        text=f"🇵🇪 **SUREBET ADAPTADA (PERÚ)** 🇵🇪\n\n{texto_peru}",
-        reply_markup=InlineKeyboardMarkup(botones),
-        parse_mode="Markdown"
+    # DICCIONARIO DE TRADUCCIÓN (Agrega aquí más variantes si necesitas)
+    sinonimos_remates = ["tiro tres palos", "patada al arco", "tiro directo", "tiros al arco", "remates"]
+    sinonimos_corners = ["córners", "tiros de esquina", "esquina"]
+    sinonimos_saques = ["total de saques", "saques", "aces"]
+
+    # 1. Extracción automática del nombre del partido y mercado
+    for linea in lineas:
+        linea_lower = linea.lower()
+        # Detectar la línea del partido (usualmente lleva guion o ' x ')
+        if (" - " in linea or " x " in linea) and "sección" not in linea_lower and "fecha" not in linea_lower:
+            partido = linea.strip()
+        
+        # Traducir los términos del mercado al nombre correcto
+        if any(keyword in linea_lower for keyword in sinonimos_remates):
+            mercado_detectado = "🎯 Tiros al Arco / Remates a puerta"
+        elif any(keyword in linea_lower for keyword in sinonimos_corners):
+            mercado_detectado = "📐 Total de Córners"
+        elif any(keyword in linea_lower for keyword in sinonimos_saques):
+            mercado_detectado = "🎾 Total de Saques / Aces"
+
+    # 2. Creación de los enlaces web (Codificación URL)
+    termino_busqueda = urllib.parse.quote(partido)
+    url_betano = f"https://betano.pe{termino_busqueda}"
+    url_betsson = f"https://betsson.com{termino_busqueda}"
+
+    # 3. Creación de los botones interactivos
+    markup = telebot.types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        telebot.types.InlineKeyboardButton(text="🍊 BETANO: Ir al Partido", url=url_betano),
+        telebot.types.InlineKeyboardButton(text="👑 BETSSON: Ir al Partido", url=url_betsson)
     )
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🇵🇪 ¡Bot Perú Activo! Envíame tu señal y te daré la traducción con los accesos directos de inmediato.")
+    # 4. Respuesta armada para el usuario
+    respuesta = (
+        f"⚡ **¡SEÑAL PROCESADA EN TIEMPO RÉCORD!**\n\n"
+        f"⚽ **Evento:** `{partido}`\n"
+        f"📊 **Mercado sugerido:** {mercado_detectado}\n\n"
+        f"👇 Haz clic abajo para abrir el buscador directo en cada casa:"
+    )
 
-def main():
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, manejar_senal))
-    print("Bot encendido...")
-    app.run_polling()
+    bot.reply_to(message, respuesta, reply_markup=markup, parse_mode="Markdown")
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    bot.infinity_polling()
+
+
