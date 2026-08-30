@@ -1,19 +1,8 @@
 import os
 import telebot
 import urllib.parse
-from threading import Thread
-from flask import Flask
 
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Servidor Activo
-
-def run():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
-
+# Tu Token directo y corregido
 TELEGRAM_TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
@@ -68,6 +57,4 @@ def procesar_senal_arbitraje(message):
     bot.reply_to(message, respuesta, reply_markup=markup, parse_mode="Markdown")
 
 if __name__ == "__main__":
-    t = Thread(target=run)
-    t.start()
     bot.infinity_polling()
