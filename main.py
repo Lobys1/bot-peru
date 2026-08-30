@@ -12,9 +12,10 @@ def home():
     return "Servidor Activo"
 
 def run():
-    port = int(os.environ.get("PORT", 8080))
+ port = int(os.environ.get("PORT",10000))
+
     app.run(host='0.0.0.0', port=port)
-TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
+TELEGRAM_TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
