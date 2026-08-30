@@ -37,14 +37,16 @@ def traducir_senal(texto_original):
     for termino_br, termino_pe in DICCIONARIO_MERCADOS.items():
         texto_peru = texto_peru.replace(termino_br, termino_pe)
     return texto_peru
-
 def extraer_equipos(texto):
     lineas = texto.split('\n')
     for linea in lineas:
-        if "Fecha" not in linea and "Casas" not in linea and ":" not in linea and "http" not in linea:
-            if "-" in linea or "x" in linea or "vs" in linea or "VS" in linea:
-                return re.sub(r'[-xX]|(vs)|(VS)', ' ', linea).strip()
+        if any(sep in linea for sep in [" x ", " X ", " vs ", " VS ", " - "]):
+            linea_limpia = re.sub(r'^(Jogo|Partido|Match|🚨):\s*', '', linea, flags=re.IGNORECASE)
+            linea_limpia = re.sub(r'[^\w\s\-]', '', linea_limpia)
+            return re.sub(r'\s+([xX]|vs|VS|-)\s+', ' ', linea_limpia).strip()
     return None
+
+
 
 async def manejar_mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto_recibido = update.message.text
