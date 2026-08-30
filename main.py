@@ -21,6 +21,7 @@ def keep_alive():
 # 2. Tu Token directo y corregido
 TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
 bot = telebot.TeleBot(TOKEN)
+bot.remove_webhook()
 
 # Encendemos el servidor web falso
 keep_alive()
