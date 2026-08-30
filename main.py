@@ -4,17 +4,16 @@ import urllib.parse
 from threading import Thread
 from flask import Flask
 
-# Servidor web integrado para que Render se mantenga encendido
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Servidor Activo"
+    return "Servidor Activo
 
 def run():
- port = int(os.environ.get("PORT",10000))
-
+    port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
+
 TELEGRAM_TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
