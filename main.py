@@ -1,5 +1,5 @@
-
-import os, logging, re, urllib.parse
+import os, logging, re, urllib.parse, threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -68,7 +68,20 @@ async def manejar_mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text('¡Bot Perú Activo!')
 
+class ServidorFalso(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"Bot activo")
+
+def correr_servidor_web():
+    puerto = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", puerto), ServidorFalso)
+    server.serve_forever()
+
 def main():
+    threading.Thread(target=correr_servidor_web, daemon=True).start()
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, manejar_mensaje))
