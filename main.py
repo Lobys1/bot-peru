@@ -7,8 +7,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-
-TOKEN="8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
+# 🔑 BORRA LO QUE ESTÁ EN MEDIO DE LAS COMILLAS Y PEGA TU TOKEN COMPLETO AQUÍ:
+TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
 
 DICCIONARIO_CASAS = {
     r"Betsson\(BR\)": "Betsson Perú 🇵🇪",
