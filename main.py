@@ -1,94 +1,122 @@
-import os, logging, re, urllib.parse, threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import os
+import logging
+import re
+import urllib.parse
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+# 🔑 PEGA TU TOKEN DE BOTFATHER JUSTO AQUÍ EN MEDIO DE LAS COMILLAS:
 TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# Presupuesto predeterminado en Soles Peruanos (S/.)
+monto_total_usuario = 500.0
 
 DICCIONARIO_CASAS = {
-    "Betsson(BR)": "Betsson Perú 🇵🇪",
-    "Betano": "Betano Perú 🇵🇪",
-    "1xBet": "1xBet Perú 🇵🇪",
-    "Coolbet": "Coolbet Perú 🇵🇪",
-    "Novibet": "Novibet Perú 🇵🇪",
-    "DoradoBet": "DoradoBet 🇵🇪",
-    "Apuesta Total": "Apuesta Total 🇵🇪",
-    "Inkabet": "Inkabet 🇵🇪"
+    r"Betsson\(BR\)": "Betsson Perú 🇵🇪",
+    r"Betano": "Betano Perú 🇵🇪",
+    r"EstrelaBet\(BR\)": "Betano / Doradobet (Mismo Proveedor) 🇵🇪",
+    r"1xBet": "1xBet Perú 🇵🇪",
+    r"Coolbet": "Coolbet Perú 🇵🇪",
+    r"Novibet": "Novibet Perú 🇵🇪",
+    r"Doradobet": "Doradobet 🇵🇪",
+    r"Inkabet": "Inkabet 🇵🇪"
 }
 
 DICCIONARIO_MERCADOS = {
-    "Remates Totales": "Total de tiros",
-    "Tiros totales a portería": "Tiros a Puerta (Busca 'Remates al arco')",
-    "Tiros a puerta": "Tiros al arco",
-    "Pestaña": "Sección:",
-    "Por encima de": "Más de (+)",
-    "Por debajo de": "Menos de (-)",
+    "Total de visitas": "Total de Carreras - VISITANTE (Pestaña: Especiales por Equipo / Carreras)",
+    "Pontos totais": "Total de Puntos (Pestaña: Más/Menos o Totales)",
+    "Patadas totales": "Remates Totales (Busca 'Total de tiros')",
+    "Tiros a puerta": "Tiros al arco / Remates a portería",
     "Escanteios": "Córners / Tiros de Esquina",
+    "Cantos": "Córners / Tiros de Esquina",
     "Cartões": "Tarjetas Totales",
-    "Ambos Marcan": "Ambos Anotan (Sí/No)"
+    "Ambos Marcam": "Ambos Anotan (Sí/No)",
+    "Por encima de": "Más de (+)",
+    "Por debajo de": "Menos de (-)"
 }
 
-def traducir_senal(texto_original):
-    texto_peru = texto_original
-    for casa_br, casa_pe in DICCIONARIO_CASAS.items():
-        texto_peru = re.sub(casa_br, casa_pe, texto_peru, flags=re.IGNORECASE)
-    for termino_br, termino_pe in DICCIONARIO_MERCADOS.items():
-        texto_peru = texto_peru.replace(termino_br, termino_pe)
-    return texto_peru
-def extraer_equipos(texto):
-    lineas = texto.split('\n')
+def traducir_texto(texto):
+    for br, pe in DICCIONARIO_CASAS.items():
+        texto = re.sub(br, pe, texto, flags=re.IGNORECASE)
+    for br, pe in DICCIONARIO_MERCADOS.items():
+        texto = texto.replace(br, pe)
+    return texto
+
+def extraer_cuotas(texto):
+    cuotas = [float(c) for c in re.findall(r"\|\s*([0-9\.]+)", texto)]
+    if len(cuotas) >= 2:
+        return cuotas[:2]
+    return [1.80, 2.45]
+
+def extraer_partido(texto):
+    for linea in texto.split('\n'):
+        if ("–" in linea or "-" in linea) and not any(k in linea for k in ["Fecha", "Casas", "Apuesta", "GANANCIA"]):
+            return linea.replace("➡ ", "").strip()
+    return "Partido"
+
+async def manejar_senal(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = update.message.text
+    if not texto: return
+    
+    texto_peru = traducir_texto(texto)
+    partido = extraer_partido(texto)
+    cuotas = extraer_cuotas(texto)
+    
+    c1, c2 = cuotas[0], cuotas[1]
+    implied_prob = (1/c1) + (1/c2)
+    monto1 = (monto_total_usuario / (c1 * implied_prob))
+    monto2 = (monto_total_usuario / (c2 * implied_prob))
+    
+    lineas = texto_peru.split('\n')
+    texto_final = ""
+    contador_casa = 0
+    
     for linea in lineas:
-        if any(sep in linea for sep in [" x ", " X ", " vs ", " VS ", " - "]):
-            linea_limpia = re.sub(r'^(Jogo|Partido|Match|🚨):\s*', '', linea, flags=re.IGNORECASE)
-            linea_limpia = re.sub(r'[^\w\s\-]', '', linea_limpia)
-            return re.sub(r'\s+([xX]|vs|VS|-)\s+', ' ', linea_limpia).strip()
-    return None
-
-
-
-async def manejar_mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    texto_recibido = update.message.text
-    if not texto_recibido: return
-    mensaje_traducido = traducir_senal(texto_recibido)
-    partido = extraer_equipos(texto_recibido)
-    botones = []
-    if partido:
-        query = urllib.parse.quote_plus(partido)
-        botones = [
-            [InlineKeyboardButton("Betano", url=f"https://google.com={query}")],
-            [InlineKeyboardButton("Betsson", url=f"https://google.com={query}")],
-            [InlineKeyboardButton("Apuesta Total", url=f"https://google.com={query}")],
-            [InlineKeyboardButton("DoradoBet", url=f"https://google.com={query}")],
-            [InlineKeyboardButton("Inkabet", url=f"https://google.com={query}")],
-            [InlineKeyboardButton("1xBet", url=f"https://google.com={query}")]
-        ]
-    reply_markup = InlineKeyboardMarkup(botones) if botones else None
-    await update.message.reply_text(text=f"**🚨 SEÑAL ADAPTADA 🚨**\n\n{mensaje_traducido}", reply_markup=reply_markup, parse_mode='Markdown')
+        if "Monto a meter:" in linea or "Apuesta:" in linea:
+            texto_final += linea + "\n"
+            if "Apuesta:" in linea and contador_casa == 0:
+                texto_final += f"💵 **Monto a apostar aquí: S/. {monto1:.2f} PEN**\n"
+                contador_casa += 1
+            elif "Apuesta:" in linea and contador_casa == 1:
+                texto_final += f"💵 **Monto a apostar aquí: S/. {monto2:.2f} PEN**\n"
+        else:
+            texto_final += linea + "\n"
+            
+    query = urllib.parse.quote_plus(partido)
+    botones = [
+        [InlineKeyboardButton("🔍 Buscar Partido en Betano", url=f"https://betano.pe{query}")],
+        [InlineKeyboardButton("🔍 Buscar Partido en Betsson", url=f"https://betsson.pe{query}")]
+    ]
+    
+    await update.message.reply_text(
+        text=f"🇵🇪 **SUREBET OPTIMIZADA (PERÚ)** 🇵🇪\n💰 Presupuesto: S/. {monto_total_usuario:.2f}\n\n{texto_final}",
+        reply_markup=InlineKeyboardMarkup(botones),
+        parse_mode="Markdown"
+    )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('¡Bot Perú Activo!')
+    await update.message.reply_text("🇵🇪 Bot configurado. Pega tu señal y te daré los montos en Soles y los accesos rápidos.")
 
-class ServidorFalso(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(b"Bot activo")
-
-def correr_servidor_web():
-    puerto = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(("0.0.0.0", puerto), ServidorFalso)
-    server.serve_forever()
+async def cambiar_monto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global monto_total_usuario
+    try:
+        if context.args:
+            monto_total_usuario = float(context.args[0])
+            await update.message.reply_text(f"✅ Ahora los cálculos se harán en base a: **S/. {monto_total_usuario:.2f} PEN**")
+        else:
+            await update.message.reply_text("Uso: `/monto 300`")
+    except:
+        await update.message.reply_text("Uso: `/monto 300`")
 
 def main():
-    threading.Thread(target=correr_servidor_web, daemon=True).start()
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, manejar_mensaje))
-    print("Bot corriendo...")
+    app.add_handler(CommandHandler("monto", cambiar_monto))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, manejar_senal))
+    print("Bot encendido...")
     app.run_polling()
 
 if __name__ == '__main__':
     main()
+
