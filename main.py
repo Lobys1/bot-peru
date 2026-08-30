@@ -1,12 +1,31 @@
 import os
 import telebot
 import urllib.parse
+from flask import Flask
+from threading import Thread
 
-# Tu Token directo y corregido
+# 1. Configuración del servidor web falso para Render
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "OK, Bot en ejecución"
+
+def run():
+    app.run(host='0.0.0.0', port=10000)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+# 2. Tu Token directo y corregido
 TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
-
 bot = telebot.TeleBot(TOKEN)
 
+# Encendemos el servidor web falso
+keep_alive()
+
+# 3. Lógica del Bot de Telegram
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     bot.reply_to(message, "¡Bot Perú Activo! Envíame tu señal de apuestas y te daré la traducción con los accesos directos de inmediato.")
@@ -39,8 +58,8 @@ def procesar_senal_arbitraje(message):
             mercado_detectado = "🎾 Total de Saques / Aces"
 
     termino_busqueda = urllib.parse.quote(partido)
-    url_betano = f"https://betano.pe{termino_busqueda}"
-    url_betsson = f"https://betsson.com{termino_busqueda}"
+    url_betano = f"https://www.betano.pe" # Base limpia de Betano Perú
+    url_betsson = f"https://www.betsson.com"
 
     markup = telebot.types.InlineKeyboardMarkup(row_width=1)
     markup.add(
