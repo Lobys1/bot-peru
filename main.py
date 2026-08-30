@@ -3,7 +3,7 @@ import telebot
 import urllib.parse
 
 # Tu Token directo y corregido
-TELEGRAM_TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
+TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
