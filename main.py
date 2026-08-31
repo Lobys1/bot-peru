@@ -19,7 +19,7 @@ def keep_alive():
     t.start()
 
 # 2. Tu Token directo y corregido
-TOKEN = "8931677038:AAEBznHjkV-A7VAVpjkLQsEdtZ4wUaP4orM" 
+TOKEN = "8931677038:AAHEM-7YdCK1IpmzyCyHL34f2IVHx1oLGGo" 
 bot = telebot.TeleBot(TOKEN)
 bot.remove_webhook()
 
